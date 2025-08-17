@@ -1,5 +1,6 @@
 # VLLM
-VLLM_PATH_TO_MODEL=</абсолютный/путь/до/модели/llm>
+PATH_TO_MODELS=</абсолютный/путь/до/директории/моделей>
+MODEL_NAME=<название модели>
 VLLM_PORT=<INT порт для VLLM>
 VLLM_API_KEY=<STRING Токен для доступа к vLLM>
 VLLM_SERVED_MODEL_NAME=<Псевдоним для названия модели в vLLM>
@@ -12,5 +13,3 @@ VLLM_INTERNAL_PORT=3423
 VLLM_INTERNAL_HOST="0.0.0.0" 
 # Путь до каталога с кэшем huggingface (внутри контейнера)
 HF_HOME="/cache/huggingface"
-# Путь до каталога с кэшем huggingface (на хосте)
-HF_HOME_HOST="$HOME/.cache/huggingface/hub"
