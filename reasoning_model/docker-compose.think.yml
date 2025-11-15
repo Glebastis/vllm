@@ -1,0 +1,98 @@
+x-vllm-common: &default
+  # build:
+  #   dockerfile: ./Dockerfile.vllm
+  #   args:
+  #     INNO_MIRRORS: $INNO_MIRRORS
+  image: vllm/vllm-openai:v0.10.1.1
+  restart: unless-stopped
+  hostname: da-vllm-think
+  ipc: host
+  runtime: nvidia
+  env_file:
+    - .env
+  #ports:
+  #  - ${VLLM__PORT:-}:${VLLM__PORT_CONTAINER:-3423}
+  deploy:
+    resources:
+      reservations:
+       devices:
+         - driver: nvidia
+          #  count: all
+           device_ids: ['${GPU_DEVICES}']
+           capabilities: [gpu]
+  healthcheck:
+    test: [
+      "CMD", 
+      "curl", "-f", "http://localhost:${VLLM__PORT_CONTAINER:-3423}/metrics"
+      ]
+    timeout: 30s
+    retries: 14
+  entrypoint: [
+    "python3", "-m", "vllm.entrypoints.openai.api_server",
+    "--api-key", $VLLM_API_KEY,
+    "--host", "0.0.0.0", "--port", "${VLLM__PORT_CONTAINER:-3423}",
+    # нельзя подать последовательность длинее этого параметра
+    "--max_model_len", $MAX_MODEL_LEN,
+    "--max_num_seqs", $MAX_NUM_SEQS,
+    "--model", $PATH_TO_MODEL,
+    # отсылка промпта в модель чанками небольшой длины - повышает throughput, понижает скорость первого токена
+    "--enable-chunked-prefill",
+    "--max_num_batched_tokens", $MAX_NUM_BATCHED_TOKENS,
+    "--served-model-name", $SERVED_MODEL_NAME,
+    "--gpu-memory-utilization", $GPU_MEMORY_UTILIZATION,
+    "--tensor-parallel-size", $TENSOR_PARALLEL_SIZE,
+    "--uvicorn-log-level", "debug",
+    "--download-dir", $HF_HOME,
+    "--enable-reasoning",
+    "--reasoning-parser", "deepseek_r1"
+    ]
+  networks:
+    - default
+
+services:
+  da-vllm-think:
+    <<: *default
+    container_name: da-vllm-think
+    volumes:
+      - $PATH_TO_MODEL:$PATH_TO_MODEL
+    profiles:
+      - local
+
+  da-vllm-hf: 
+    <<: *default
+    container_name: da-vllm-think
+    volumes:
+      - $HF_HOME_HOST:$HF_HOME
+    profiles:
+      - hf
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    # ports:
+    #   - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - WEBUI_SECRET_KEY=nwq%mR5R%r%&VxVLHkWp4zdQCcAaJyNp
+      - ENABLE_OLLAMA_API=false
+      - OPENAI_API_BASE_URL=http://da-vllm-think:${VLLM__PORT_CONTAINER:-3423}/v1
+      - OPENAI_API_KEY=${VLLM_API_KEY}
+      
+      # Настройки аутентификации
+      - ENABLE_SIGNUP=false
+      - DEFAULT_USER_ROLE=user
+      # Предустановленный админ
+      - WEBUI_NAME=Da Team
+      - ENABLE_COMMUNITY_SHARING=false
+    restart: unless-stopped
+    networks:
+      - default
+
+volumes:
+  open-webui:
+
+networks:
+   default:
+     name: da-network-prod
+     external: true
